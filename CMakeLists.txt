@@ -1,23 +1,15 @@
-cmake_minimum_required(VERSION 3.15)
-project(codecoach_motor CXX)
+cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Nombre general del super-proyecto
+project(codecoach_superproject)
 
-if (MSVC)
-    add_compile_options(/W4 /EHsc)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
+# Por ahora solo existe el motor de evaluaciones.
+# OJO: El texto dentro de las comillas debe coincidir EXACTO con
+# el nombre de la carpeta: "Motor de evaluaciones"
+add_subdirectory("Motor de evaluaciones")
 
-include_directories(
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/third_party
-)
+# Más adelante, cuando creen los otros módulos, solo descomentas
+# o agregas estas líneas (cuando existan esas carpetas y sus CMakeLists):
 
-add_executable(codecoach_motor
-        src/main.cpp
-        src/MotorEvaluacion.cpp
-        src/EjecutadorCodigo.cpp
-        src/SandboxEjecucion.cpp
-)
+# add_subdirectory("Gestor de problemas")
+# add_subdirectory("Analizador de soluciones")
