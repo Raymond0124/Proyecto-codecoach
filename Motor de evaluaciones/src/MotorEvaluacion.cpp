@@ -1,11 +1,11 @@
-#include "MotorEvaluacion.h"
-#include "EjecutadorCodigo.h"
-
+#include "../include/MotorEvaluacion.h"
+#include "../include/EjecutadorCodigo.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+
 
 namespace fs = std::filesystem;
 

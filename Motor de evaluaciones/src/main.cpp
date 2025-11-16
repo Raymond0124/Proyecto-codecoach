@@ -2,9 +2,16 @@
 #include <string>
 #include <vector>
 
-#include "httplib.h"
-#include "json.hpp"
-#include "MotorEvaluacion.h"
+#include <iostream>
+#include <string>
+#include <vector>
+
+// rutas relativas desde src/ hacia third_party e include
+#include "../third_party/httplib.h"
+#include "../third_party/json.hpp"
+#include "../include/MotorEvaluacion.h"
+
+
 
 using json = nlohmann::json;
 

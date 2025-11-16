@@ -1,19 +1,8 @@
-cmake_minimum_required(VERSION 3.15)
-project(codecoach_motor CXX)
+cmake_minimum_required(VERSION 3.20)
+project(codecoach_motor)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-if (MSVC)
-    add_compile_options(/W4 /EHsc)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-include_directories(
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/third_party
-)
 
 add_executable(codecoach_motor
         src/main.cpp
@@ -21,3 +10,14 @@ add_executable(codecoach_motor
         src/EjecutadorCodigo.cpp
         src/SandboxEjecucion.cpp
 )
+
+# Directorios donde buscar .h
+target_include_directories(codecoach_motor PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+)
+
+# Para GetProcessMemoryInfo (Windows)
+if (WIN32)
+    target_link_libraries(codecoach_motor PRIVATE psapi)
+endif()

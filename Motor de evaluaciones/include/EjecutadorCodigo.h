@@ -2,7 +2,9 @@
 #define CODECOACH_EJECUTADOR_CODIGO_H
 
 #include <string>
-#include "MotorEvaluacion.h"
+
+// Forward declaration para evitar ciclo de includes.
+struct LimitesEjecucion;
 
 // Resultado de ejecutar un programa para un caso de prueba concreto.
 struct MedicionEjecucion {
