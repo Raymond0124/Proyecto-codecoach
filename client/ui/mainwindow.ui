@@ -6,110 +6,118 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
+    <width>900</width>
     <height>700</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>CodeCoach - Interfaz</string>
+   <string>CodeCoach - Cliente</string>
   </property>
+
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout">
-    <!-- Columna izquierda: lista y búsqueda -->
-    <item row="0" column="0">
-     <layout class="QVBoxLayout" name="leftLayout">
+   <layout class="QVBoxLayout" name="verticalLayout">
+
+    <!-- Selección de categoría -->
+    <item>
+     <layout class="QHBoxLayout">
       <item>
-       <widget class="QLineEdit" name="txtSearch">
-        <property name="placeholderText">
-         <string>Buscar problema...</string>
+       <widget class="QLabel" name="lblCat">
+        <property name="text">
+         <string>Categoría:</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QListWidget" name="listProblems"/>
+       <widget class="QComboBox" name="cmbCategory"/>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="adminButtons">
-        <item>
-         <widget class="QPushButton" name="btnAdd">
-          <property name="text">
-           <string>Agregar</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btnEdit">
-          <property name="text">
-           <string>Editar</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btnDelete">
-          <property name="text">
-           <string>Eliminar</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <widget class="QPushButton" name="btnNext">
+        <property name="text">
+         <string>Cargar problema</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnOpenAdmin">
+        <property name="text">
+         <string>Administración</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </item>
 
-    <!-- Columna derecha: enunciado, ejemplos y código -->
-    <item row="0" column="1">
-     <layout class="QVBoxLayout" name="rightLayout">
-      <item>
-       <widget class="QLabel" name="lblStatement">
-        <property name="text">
-         <string>Enunciado del problema:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPlainTextEdit" name="txtStatement">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="lblExamples">
-        <property name="text">
-         <string>Ejemplos:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPlainTextEdit" name="txtExamples">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="lblCode">
-        <property name="text">
-         <string>Tu código:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPlainTextEdit" name="txtCode"/>
-      </item>
-      <item alignment="Qt::AlignRight">
-       <widget class="QPushButton" name="btnSubmit">
-        <property name="text">
-         <string>Enviar solución</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
+    <!-- Título -->
+    <item>
+     <widget class="QLabel" name="lblTitle">
+      <property name="text">
+       <string>Seleccione una categoría...</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">font-size:20px; font-weight:bold;</string>
+      </property>
+     </widget>
     </item>
+
+    <!-- Descripción -->
+    <item>
+     <widget class="QPlainTextEdit" name="txtDescription">
+      <property name="placeholderText">
+       <string>Descripción del problema...</string>
+      </property>
+     </widget>
+    </item>
+
+    <!-- Editor de código -->
+    <item>
+     <widget class="QPlainTextEdit" name="txtCode">
+      <property name="placeholderText">
+       <string>Escriba su solución aquí...</string>
+      </property>
+      <property name="minimumHeight">
+       <number>150</number>
+      </property>
+     </widget>
+    </item>
+
+    <!-- Casos de prueba -->
+    <item>
+     <widget class="QPlainTextEdit" name="txtCases">
+      <property name="placeholderText">
+       <string>Escriba casos de prueba aquí...</string>
+      </property>
+     </widget>
+    </item>
+
+    <!-- Botón Evaluar -->
+    <item>
+     <widget class="QPushButton" name="btnEvaluate">
+      <property name="text">
+       <string>Evaluar código</string>
+      </property>
+     </widget>
+    </item>
+
+    <!-- Output -->
+    <item>
+     <widget class="QPlainTextEdit" name="txtOutput">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+      <property name="placeholderText">
+       <string>Salida del motor...</string>
+      </property>
+     </widget>
+    </item>
+
    </layout>
   </widget>
+
  </widget>
+
  <resources/>
  <connections/>
 </ui>
-

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AdminWindow</class>
+ <widget class="QDialog" name="AdminWindow">
+
+ <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Gestor de Problemas</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="labelTitle">
+       <property name="text"><string>Título:</string></property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="txtTitle"/>
+     </item>
+
+     <item row="1" column="0">
+      <widget class="QLabel" name="labelCategory">
+       <property name="text"><string>Categoría:</string></property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QComboBox" name="cmbCategoryAdmin"/>
+     </item>
+
+     <item row="2" column="0">
+      <widget class="QLabel" name="labelDesc">
+       <property name="text"><string>Descripción:</string></property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPlainTextEdit" name="txtDescriptionAdmin">
+       <property name="minimumHeight"><number>120</number></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <item>
+    <widget class="QLabel" name="labelCases">
+     <property name="text"><string>Casos de prueba:</string></property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QTableWidget" name="tblCases">
+     <property name="columnCount"><number>2</number></property>
+     <column>
+      <property name="text"><string>Input</string></property>
+     </column>
+     <column>
+      <property name="text"><string>Expected</string></property>
+     </column>
+    </widget>
+   </item>
+
+   <item>
+    <layout class="QHBoxLayout" name="bottomButtons">
+     <item>
+      <widget class="QPushButton" name="btnAddCase">
+       <property name="text"><string>Agregar caso</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRemoveCase">
+       <property name="text"><string>Eliminar caso</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">Qt::Horizontal</property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnSaveProblem">
+       <property name="text"><string>Guardar problema</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnClose">
+       <property name="text"><string>Cerrar</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

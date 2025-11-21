@@ -1,16 +1,9 @@
-#include <QApplication>
 #include "MainWindow.h"
+#include <QApplication>
 
-/**
- * Punto de entrada de la aplicación CodeCoach (Interfaz Gráfica)
- */
 int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
-
-    MainWindow window;
-    window.setWindowTitle("CodeCoach - Interfaz de Práctica");
-    window.resize(1000, 700);
-    window.show();
-
-    return app.exec();
+    QApplication a(argc, argv);
+    MainWindow w;
+    w.show();
+    return a.exec();
 }

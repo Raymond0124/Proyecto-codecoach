@@ -1,11 +1,19 @@
-#pragma once
-#include <QString>
+#ifndef PROBLEMMODEL_H
+#define PROBLEMMODEL_H
 
-struct ProblemView {
-    QString id;
-    QString title;
-    QString category;
-    QString statement;
-    QString examples;
-    QString difficulty;
+#include <QString>
+#include <QList>
+
+struct TestCase {
+    QString input;
+    QString expected;
 };
+
+struct ProblemModel {
+    QString title;
+    QString description;
+    QString category;
+    QList<TestCase> cases;
+};
+
+#endif // PROBLEMMODEL_H

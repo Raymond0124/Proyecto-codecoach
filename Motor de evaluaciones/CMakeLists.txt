@@ -17,7 +17,10 @@ target_include_directories(codecoach_motor PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
-# Para GetProcessMemoryInfo (Windows)
+# Librerías requeridas para Windows
 if (WIN32)
-    target_link_libraries(codecoach_motor PRIVATE psapi)
+    target_link_libraries(codecoach_motor PRIVATE
+            psapi        # para GetProcessMemoryInfo
+            ws2_32       # ⬅️ NECESARIO para cpp-httplib (WinSock)
+    )
 endif()

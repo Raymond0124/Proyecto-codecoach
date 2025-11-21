@@ -1,144 +1,131 @@
 #include "MainWindow.h"
 #include "ui_mainwindow.h"
-#include <QMessageBox>
-#include <QInputDialog>
+#include "AdminWindow.h"
+
 #include <QJsonDocument>
-#include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QMessageBox>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow) {
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+{
     ui->setupUi(this);
 
-    // Conectar señales a slots
-    connect(ui->btnSubmit, &QPushButton::clicked, this, &MainWindow::onBtnSubmitClicked);
-    connect(ui->btnAdd, &QPushButton::clicked, this, &MainWindow::onBtnAddClicked);
-    connect(ui->btnEdit, &QPushButton::clicked, this, &MainWindow::onBtnEditClicked);
-    connect(ui->btnDelete, &QPushButton::clicked, this, &MainWindow::onBtnDeleteClicked);
-    connect(ui->listProblems, &QListWidget::itemSelectionChanged, this, &MainWindow::onProblemSelected);
-    connect(ui->txtSearch, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
+    service = new ProblemService(this);
+    service->setBaseUrl("http://localhost:3000"); // cambia si tu API está en otra URL
 
-    loadProblemsFromServer();
+    // llenar combo con categorías ejemplo
+    ui->cmbCategory->addItem("algoritmos");
+    ui->cmbCategory->addItem("strings");
+    ui->cmbCategory->addItem("matematica");
+
+    connect(ui->btnEvaluate, &QPushButton::clicked, this, &MainWindow::on_btnEvaluate_clicked);
+    connect(ui->btnNext, &QPushButton::clicked, this, &MainWindow::on_btnNext_clicked);
+    connect(ui->btnOpenAdmin, &QPushButton::clicked, this, &MainWindow::on_btnOpenAdmin_clicked);
+
+    // cargar primer problema automáticamente (categoria por defecto)
+    on_btnNext_clicked();
 }
 
-MainWindow::~MainWindow() {
-    delete ui;
-}
+void MainWindow::on_btnNext_clicked() {
+    QString cat = ui->cmbCategory->currentText();
+    ui->lblTitle->setText("Cargando problema...");
+    ui->txtDescription->setPlainText("");
+    ui->txtCode->clear();
+    ui->txtOutput->clear();
 
-void MainWindow::loadProblemsFromServer() {
-    http.get("http://localhost:5000/problems", [this](const QByteArray &data, int status) {
+    service->getRandomProblem(cat, [this](const QByteArray &data, int status){
         if (status != 200) {
-            QMessageBox::warning(this, "Error", "No se pudieron cargar los problemas.");
+            ui->lblTitle->setText("Error al cargar problema");
+            ui->txtDescription->setPlainText(QString::fromUtf8(data));
             return;
         }
-
-        problems.clear();
-        QJsonDocument doc = QJsonDocument::fromJson(data);
-        QJsonArray arr = doc.array();
-
-        for (auto val : arr) {
-            QJsonObject o = val.toObject();
-            ProblemView p;
-            p.id = o["_id"].toString();
-            p.title = o["title"].toString();
-            p.category = o["category"].toString();
-            p.statement = o["statement"].toString();
-            p.examples = o["examples"].toString();
-            p.difficulty = o["difficulty"].toString();
-            problems.append(p);
-        }
-
-        populateList(problems);
+        loadProblemFromJson(data);
     });
 }
 
-void MainWindow::populateList(const QVector<ProblemView> &data) {
-    ui->listProblems->clear();
-    for (const auto &p : data)
-        ui->listProblems->addItem(p.title);
+void MainWindow::loadProblemFromJson(const QByteArray &data) {
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) {
+        ui->lblTitle->setText("Respuesta inválida");
+        return;
+    }
+    QJsonObject obj = doc.object();
+    currentProblem.title = obj.value("title").toString();
+    currentProblem.description = obj.value("description").toString();
+    currentProblem.category = obj.value("category").toString();
+    currentProblem.cases.clear();
+
+    QJsonArray cases = obj.value("cases").toArray();
+    for (auto v : cases) {
+        QJsonObject c = v.toObject();
+        TestCase t;
+        t.input = c.value("input").toString();
+        t.expected = c.value("expected").toString();
+        currentProblem.cases.append(t);
+    }
+
+    ui->lblTitle->setText(currentProblem.title + "  [" + currentProblem.category + "]");
+    ui->txtDescription->setPlainText(currentProblem.description);
 }
 
-void MainWindow::showProblem(const ProblemView &p) {
-    ui->txtStatement->setPlainText(p.statement);
-    ui->txtExamples->setPlainText(p.examples);
+QByteArray MainWindow::buildEvaluatePayload() const {
+    QJsonObject root;
+    root["codigo"] = ui->txtCode->toPlainText();
+
+    QJsonArray arr;
+    for (const auto &c : currentProblem.cases) {
+        QJsonObject o;
+        o["input"] = c.input;
+        o["expected"] = c.expected;
+        arr.append(o);
+    }
+    root["casos"] = arr;
+
+    QJsonObject limits;
+    limits["tiempo_segundos"] = 2;
+    limits["memoria_mb"] = 256;
+    root["limites"] = limits;
+
+    root["politica_comparacion"] = "normalizado";
+
+
+    return QJsonDocument(root).toJson();
 }
 
-void MainWindow::onProblemSelected() {
-    int idx = ui->listProblems->currentRow();
-    if (idx >= 0 && idx < problems.size())
-        showProblem(problems[idx]);
-}
+void MainWindow::on_btnEvaluate_clicked() {
+    QByteArray body = buildEvaluatePayload();
+    ui->txtOutput->setPlainText("Enviando al motor...");
 
-void MainWindow::onBtnSubmitClicked() {
-    int idx = ui->listProblems->currentRow();
-    if (idx < 0) return;
-
-    QString code = ui->txtCode->toPlainText();
-    QString id = problems[idx].id;
-
-    QJsonObject json;
-    json["id"] = id;
-    json["code"] = code;
-    QByteArray body = QJsonDocument(json).toJson();
-
-    http.post("http://localhost:5000/submit", body, [this](const QByteArray &data, int status) {
-        if (status == 200)
-            QMessageBox::information(this, "Resultado", QString::fromUtf8(data));
-        else
-            QMessageBox::warning(this, "Error", "No se pudo enviar la solución.");
+    // motor asume en :8080 /evaluate
+    QString url = "http://localhost:8080/evaluate";
+    // usamos HttpClient internamente a través de ProblemService? Simple: crear temporario
+    HttpClient *hc = new HttpClient(this);
+    hc->post(url, body, [this, hc](const QByteArray &data, int status) {
+        showResponse(data, status);
+        hc->deleteLater();
     });
 }
 
-void MainWindow::onBtnAddClicked() {
-    QString title = QInputDialog::getText(this, "Nuevo problema", "Título:");
-    if (title.isEmpty()) return;
-
-    QJsonObject json;
-    json["title"] = title;
-    json["category"] = "General";
-    json["statement"] = "Enunciado aquí...";
-    json["examples"] = "Ejemplo aquí...";
-    json["difficulty"] = "Fácil";
-
-    http.post("http://localhost:5000/problems", QJsonDocument(json).toJson(), [this](const QByteArray &, int status) {
-        if (status == 201) loadProblemsFromServer();
-    });
+void MainWindow::showResponse(const QByteArray &data, int status) {
+    if (status != 200) {
+        ui->txtOutput->setPlainText("Error del motor: " + QString::number(status) + "\n" + QString::fromUtf8(data));
+        return;
+    }
+    // mostrar JSON bonito
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    ui->txtOutput->setPlainText(doc.toJson(QJsonDocument::Indented));
 }
 
-void MainWindow::onBtnEditClicked() {
-    int idx = ui->listProblems->currentRow();
-    if (idx < 0) return;
-
-    QString newTitle = QInputDialog::getText(this, "Editar", "Nuevo título:", QLineEdit::Normal, problems[idx].title);
-    if (newTitle.isEmpty()) return;
-
-    QJsonObject json;
-    json["title"] = newTitle;
-    QByteArray body = QJsonDocument(json).toJson();
-
-    QString url = "http://localhost:5000/problems/" + problems[idx].id;
-
-    http.put(url, body, [this](const QByteArray &, int status) {
-        if (status == 200) loadProblemsFromServer();
-    });
+void MainWindow::on_btnOpenAdmin_clicked() {
+    AdminWindow *w = new AdminWindow(this);
+    w->setService(service);
+    w->show();
 }
-
-void MainWindow::onBtnDeleteClicked() {
-    int idx = ui->listProblems->currentRow();
-    if (idx < 0) return;
-
-    QString url = "http://localhost:5000/problems/" + problems[idx].id;
-
-    http.del(url, [this](const QByteArray &, int status) {
-        if (status == 200) loadProblemsFromServer();
-    });
-}
-
-void MainWindow::onSearchTextChanged(const QString &text) {
-    QVector<ProblemView> filtered;
-    for (const auto &p : problems)
-        if (p.title.contains(text, Qt::CaseInsensitive))
-            filtered.append(p);
-
-    populateList(filtered);
+MainWindow::~MainWindow()
+{
+    delete ui;
 }
