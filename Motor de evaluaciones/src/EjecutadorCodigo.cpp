@@ -1,14 +1,14 @@
 #include "../include/EjecutadorCodigo.h"
-#include "../include/MotorEvaluacion.h"   // ← AGREGA ESTA LÍNEA
-// Ya NO usamos SandboxEjecucion ni wait.h aquí.
+#include "../include/MotorEvaluacion.h"
 
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
 #include <chrono>
+#include <iostream>
 
-// Windows API para crear procesos y medir memoria.
+// Windows API
 #include <windows.h>
 #include <psapi.h>
 
@@ -17,19 +17,22 @@ namespace fs = std::filesystem;
 bool EjecutadorCodigo::compilarConGpp(const std::string& rutaFuente,
                                       const std::string& rutaEjecutable,
                                       std::string& erroresCompilacion) {
-    fs::path directorioSalida = fs::path(rutaEjecutable).parent_path();
+    fs::path exePath = fs::absolute(rutaEjecutable);
+    fs::path directorioSalida = exePath.parent_path();
     fs::create_directories(directorioSalida);
 
     std::string rutaErrores = (directorioSalida / "compilacion_errores.txt").string();
 
     std::ostringstream comandoCompilacion;
     comandoCompilacion << "g++ -std=c++17 -O2 "
-                       << "\"" << rutaFuente << "\" -o \"" << rutaEjecutable
-                       << "\" 2> \"" << rutaErrores << "\"";
+                       << "\"" << fs::absolute(rutaFuente).string() << "\""
+                       << " -o \"" << exePath.string() << "\""
+                       << " 2> \"" << rutaErrores << "\"";
+
+    std::cout << "[Compilador] Ejecutando: " << comandoCompilacion.str() << "\n";
 
     int resultado = std::system(comandoCompilacion.str().c_str());
 
-    // Leer errores de compilación (si los hay).
     {
         std::ifstream archivoErrores(rutaErrores, std::ios::binary);
         std::ostringstream acumuladorErrores;
@@ -37,6 +40,7 @@ bool EjecutadorCodigo::compilarConGpp(const std::string& rutaFuente,
         erroresCompilacion = acumuladorErrores.str();
     }
 
+    std::cout << "[Compilador] Result = " << resultado << "\n";
     return resultado == 0;
 }
 
@@ -45,64 +49,132 @@ MedicionEjecucion EjecutadorCodigo::ejecutarConLimites(const std::string& rutaEj
                                                        const LimitesEjecucion& limites) {
     MedicionEjecucion medicion;
 
-    fs::path directorioTrabajo = fs::path(rutaEjecutable).parent_path();
+    // Rutas absolutas para evitar problemas de directorios.
+    fs::path exePathAbs        = fs::absolute(rutaEjecutable);
+    fs::path directorioTrabajo = exePathAbs.parent_path();
     fs::create_directories(directorioTrabajo);
 
-    std::string rutaEntrada = (directorioTrabajo / "entrada.txt").string();
-    std::string rutaSalida  = (directorioTrabajo / "salida.txt").string();
-    std::string rutaError   = (directorioTrabajo / "error.txt").string();
+    fs::path rutaEntradaPath = directorioTrabajo / "entrada.txt";
+    fs::path rutaSalidaPath  = directorioTrabajo / "salida.txt";
+    fs::path rutaErrorPath   = directorioTrabajo / "error.txt";
 
-    // 1. Guardar entrada en archivo.
+    std::string rutaEntrada = rutaEntradaPath.string();
+    std::string rutaSalida  = rutaSalidaPath.string();
+    std::string rutaError   = rutaErrorPath.string();
+
+    std::cout << "[EjecutadorCodigo] Ejecutable = " << exePathAbs.string() << "\n";
+    std::cout << "[EjecutadorCodigo] Existe ejecutable? "
+              << (fs::exists(exePathAbs) ? "SI" : "NO") << "\n";
+
+    // 1. Guardar la entrada en archivo.
     {
         std::ofstream archivoEntrada(rutaEntrada, std::ios::binary);
         archivoEntrada << entrada;
     }
 
-    // 2. Construir comando que cmd.exe va a ejecutar:
-    //    programa < entrada.txt > salida.txt 2> error.txt
-    std::ostringstream comandoUsuario;
-    comandoUsuario << "\"" << rutaEjecutable << "\""
-                   << " < \"" << rutaEntrada << "\""
-                   << " > \"" << rutaSalida << "\""
-                   << " 2> \"" << rutaError << "\"";
+    // 2. Crear handles heredables para stdin, stdout y stderr.
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = nullptr;
+    sa.bInheritHandle = TRUE;
 
-    std::string lineaComando = "cmd.exe /C " + comandoUsuario.str();
+    HANDLE hEntrada = CreateFileA(
+        rutaEntrada.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        &sa,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
 
-    // Necesitamos un buffer modificable para CreateProcessA.
-    std::string lineaComandoCopiable = lineaComando;
-    LPSTR cmdLine = lineaComandoCopiable.data();
+    HANDLE hSalida = CreateFileA(
+        rutaSalida.c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_READ,
+        &sa,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
 
+    HANDLE hError = CreateFileA(
+        rutaError.c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_READ,
+        &sa,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+
+    if (hEntrada == INVALID_HANDLE_VALUE ||
+        hSalida  == INVALID_HANDLE_VALUE ||
+        hError   == INVALID_HANDLE_VALUE) {
+
+        std::cout << "[EjecutadorCodigo] ERROR: no se pudieron abrir archivos de redireccion.\n";
+        medicion.huboErrorEjecucion = true;
+        medicion.codigoSalida = -1;
+        medicion.salidaError = "No se pudieron abrir archivos de entrada/salida/error.";
+        if (hEntrada != INVALID_HANDLE_VALUE) CloseHandle(hEntrada);
+        if (hSalida  != INVALID_HANDLE_VALUE) CloseHandle(hSalida);
+        if (hError   != INVALID_HANDLE_VALUE) CloseHandle(hError);
+        return medicion;
+    }
+
+    // 3. Configurar STARTUPINFO con los std handles redirigidos.
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
     si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE; // No mostrar ventana de consola.
+    si.dwFlags |= STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+    si.wShowWindow = SW_HIDE;
+    si.hStdInput  = hEntrada;
+    si.hStdOutput = hSalida;
+    si.hStdError  = hError;
 
-    // 3. Crear proceso hijo en otro proceso (sandbox mínimo).
+    // 4. Crear el proceso directamente sobre el .exe (sin cmd.exe).
+    std::string exePathStr = exePathAbs.string();
+    LPSTR cmdLine = exePathStr.data(); // CreateProcessA puede modificar este buffer.
+
+    std::cout << "[EjecutadorCodigo] Lanzando proceso directamente: " << exePathStr << "\n";
+
     BOOL ok = CreateProcessA(
-        nullptr,               // Aplicación (usamos cmd.exe en cmdLine)
-        cmdLine,               // Línea de comando
-        nullptr, nullptr,      // Seguridad (por defecto)
-        FALSE,                 // Heredar handles
-        CREATE_NO_WINDOW,      // Sin ventana
-        nullptr,               // Heredar entorno
-        directorioTrabajo.string().c_str(), // Directorio de trabajo
+        exePathAbs.string().c_str(),  // lpApplicationName
+        nullptr,                      // lpCommandLine (sin argumentos)
+        nullptr,                      // lpProcessAttributes
+        nullptr,                      // lpThreadAttributes
+        TRUE,                         // bInheritHandles -> importante para los std handles
+        CREATE_NO_WINDOW,             // dwCreationFlags
+        nullptr,                      // lpEnvironment
+        directorioTrabajo.string().c_str(), // lpCurrentDirectory
         &si,
         &pi
     );
 
+    // Ya no necesitamos los handles en este proceso; el hijo los heredó.
+    CloseHandle(hEntrada);
+    CloseHandle(hSalida);
+    CloseHandle(hError);
+
     if (!ok) {
+        DWORD err = GetLastError();
+        std::cout << "[EjecutadorCodigo] ERROR: CreateProcessA fallo. Codigo Win32 = " << err << "\n";
+
         medicion.huboErrorEjecucion = true;
         medicion.codigoSalida = -1;
-        medicion.salidaError = "No se pudo crear el proceso del usuario.";
+        std::ostringstream msg;
+        msg << "No se pudo crear el proceso de usuario. Error Win32 = " << err;
+        medicion.salidaError = msg.str();
+
         return medicion;
     }
 
+    // 5. Esperar con timeout y medir tiempo.
     DWORD timeoutMs = (limites.tiempoMaximoSegundos > 0)
-                        ? static_cast<DWORD>(limites.tiempoMaximoSegundos * 1000)
-                        : INFINITE;
+                      ? static_cast<DWORD>(limites.tiempoMaximoSegundos * 1000)
+                      : INFINITE;
 
     auto inicio = std::chrono::steady_clock::now();
     DWORD waitRes = WaitForSingleObject(pi.hProcess, timeoutMs);
@@ -112,14 +184,15 @@ MedicionEjecucion EjecutadorCodigo::ejecutarConLimites(const std::string& rutaEj
         std::chrono::duration<double, std::milli>(fin - inicio).count();
 
     if (waitRes == WAIT_TIMEOUT) {
-        // Se excedió el tiempo: matamos el proceso.
+        std::cout << "[EjecutadorCodigo] Tiempo excedido; terminando proceso.\n";
         TerminateProcess(pi.hProcess, 1);
         medicion.seExcedioTiempo = true;
         medicion.codigoSalida = 1;
     } else if (waitRes == WAIT_FAILED) {
+        std::cout << "[EjecutadorCodigo] ERROR: WaitForSingleObject fallo.\n";
         medicion.huboErrorEjecucion = true;
         medicion.codigoSalida = -1;
-        medicion.salidaError = "Error al esperar el proceso del usuario.";
+        medicion.salidaError = "WaitForSingleObject fallo.";
     } else {
         DWORD exitCode = 0;
         if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
@@ -128,9 +201,11 @@ MedicionEjecucion EjecutadorCodigo::ejecutarConLimites(const std::string& rutaEj
             medicion.codigoSalida = -1;
             medicion.huboErrorEjecucion = true;
         }
+        std::cout << "[EjecutadorCodigo] Exit code proceso usuario = "
+                  << medicion.codigoSalida << "\n";
     }
 
-    // 4. Medir memoria máxima usada (aproximada).
+    // 6. Medir memoria.
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(pi.hProcess, &pmc, sizeof(pmc))) {
         medicion.memoriaMB =
@@ -139,29 +214,26 @@ MedicionEjecucion EjecutadorCodigo::ejecutarConLimites(const std::string& rutaEj
         medicion.memoriaMB = 0.0;
     }
 
-    // Cerrar handles del proceso hijo.
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
 
-    // 5. Marcar error de ejecución si no hubo timeout pero el código de salida fue distinto de 0.
-    if (!medicion.seExcedioTiempo && medicion.codigoSalida != 0) {
-        medicion.huboErrorEjecucion = true;
-    }
-
-    // 6. Leer stdout.
+    // 7. Leer stdout y stderr desde los archivos.
     {
         std::ifstream archivoSalida(rutaSalida, std::ios::binary);
-        std::ostringstream acumuladorSalida;
-        acumuladorSalida << archivoSalida.rdbuf();
-        medicion.salidaEstandar = acumuladorSalida.str();
+        std::ostringstream acum;
+        acum << archivoSalida.rdbuf();
+        medicion.salidaEstandar = acum.str();
     }
-
-    // 7. Leer stderr.
     {
         std::ifstream archivoError(rutaError, std::ios::binary);
-        std::ostringstream acumuladorError;
-        acumuladorError << archivoError.rdbuf();
-        medicion.salidaError = acumuladorError.str();
+        std::ostringstream acum;
+        acum << archivoError.rdbuf();
+        medicion.salidaError = acum.str();
+    }
+
+    // 8. Si no hubo timeout y el exit code es distinto de 0, marcamos error.
+    if (!medicion.seExcedioTiempo && medicion.codigoSalida != 0) {
+        medicion.huboErrorEjecucion = true;
     }
 
     return medicion;
