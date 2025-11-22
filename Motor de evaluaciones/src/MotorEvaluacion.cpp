@@ -1,29 +1,36 @@
 #include "../include/MotorEvaluacion.h"
 #include "../include/EjecutadorCodigo.h"
+
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
-
+#include <iostream>
 
 namespace fs = std::filesystem;
 
 MotorEvaluacion::MotorEvaluacion(std::string directorioTrabajo)
-    : directorioTrabajo_(std::move(directorioTrabajo)) {
+        : directorioTrabajo_(std::move(directorioTrabajo)) {
     fs::create_directories(directorioTrabajo_);
 }
 
 std::string MotorEvaluacion::guardarCodigoFuenteTemporal(const std::string& codigoFuente) const {
     fs::path rutaFuente = fs::path(directorioTrabajo_) / "solucion.cpp";
     escribirArchivoCompleto(rutaFuente.string(), codigoFuente);
+
+    std::cout << "[Motor] Código guardado en: " << rutaFuente.string() << "\n";
     return rutaFuente.string();
 }
 
 bool MotorEvaluacion::compilarCodigoUsuario(const std::string& rutaFuente,
                                             std::string& rutaEjecutable,
                                             std::string& erroresCompilacion) const {
-    rutaEjecutable = (fs::path(directorioTrabajo_) / "solucion.out").string();
+
+    rutaEjecutable = (fs::path(directorioTrabajo_) / "solucion.exe").string();
+
+    std::cout << "[Motor] Compilando a ejecutable: " << rutaEjecutable << "\n";
+
     return EjecutadorCodigo::compilarConGpp(rutaFuente, rutaEjecutable, erroresCompilacion);
 }
 
@@ -32,46 +39,48 @@ ResultadoCaso MotorEvaluacion::ejecutarYCompararCaso(const std::string& rutaEjec
                                                      const LimitesEjecucion& limites,
                                                      PoliticaComparacion politica,
                                                      int indiceCaso) const {
+
     ResultadoCaso resultado;
     resultado.indiceCaso = indiceCaso;
 
-    MedicionEjecucion medicion = EjecutadorCodigo::ejecutarConLimites(rutaEjecutable,
-                                                                       caso.entrada,
-                                                                       limites);
+    std::cout << "[Motor] ---- Ejecutando caso #" << indiceCaso << " ----\n";
+
+    MedicionEjecucion medicion = EjecutadorCodigo::ejecutarConLimites(
+            rutaEjecutable, caso.entrada, limites);
 
     resultado.tiempoMs = medicion.tiempoMs;
     resultado.memoriaMB = medicion.memoriaMB;
 
     if (medicion.seExcedioTiempo) {
+        std::cout << "[Motor] Caso #" << indiceCaso << ": TIME-LIMIT\n";
         resultado.estado = "TL";
         return resultado;
     }
 
     if (medicion.huboErrorEjecucion || medicion.codigoSalida != 0) {
+        std::cout << "[Motor] Caso #" << indiceCaso << ": ERROR DE EJECUCIÓN\n"
+                  << "  Exit code: " << medicion.codigoSalida << "\n"
+                  << "  stdout:\n" << medicion.salidaEstandar << "\n"
+                  << "  stderr:\n" << medicion.salidaError << "\n";
         resultado.estado = "RE";
         return resultado;
     }
 
-    bool sonIguales = false;
+    bool ok = false;
     std::string detalle;
 
     if (politica == PoliticaComparacion::ESTRICTO) {
-        sonIguales = compararSalidaEstricta(medicion.salidaEstandar, caso.salidaEsperada);
-        if (!sonIguales) {
-            detalle = "Salida distinta en comparación estricta.";
-        }
+        ok = compararSalidaEstricta(medicion.salidaEstandar, caso.salidaEsperada);
     } else {
-        sonIguales = compararSalidaNormalizada(medicion.salidaEstandar,
-                                               caso.salidaEsperada,
-                                               detalle);
+        ok = compararSalidaNormalizada(
+                medicion.salidaEstandar, caso.salidaEsperada, detalle);
     }
 
-    if (sonIguales) {
-        resultado.estado = "OK";
-    } else {
-        resultado.estado = "INCORRECTO";
-        resultado.detalleDiferencia = detalle;
-    }
+    resultado.estado = ok ? "OK" : "INCORRECTO";
+    resultado.detalleDiferencia = detalle;
+
+    std::cout << "[Motor] Caso #" << indiceCaso
+              << " => " << resultado.estado << "\n";
 
     return resultado;
 }
@@ -80,62 +89,61 @@ ResultadoGlobal MotorEvaluacion::evaluarCodigoFuente(const std::string& codigoFu
                                                      const std::vector<CasoPrueba>& listaCasos,
                                                      const LimitesEjecucion& limites,
                                                      PoliticaComparacion politica) {
+
     ResultadoGlobal global;
 
-    // 1. Guardar código fuente temporalmente
+    std::cout << "[Motor] ===== Iniciando evaluación =====\n";
+
     std::string rutaFuente = guardarCodigoFuenteTemporal(codigoFuente);
 
-    // 2. Compilar
     std::string rutaEjecutable;
     std::string erroresCompilacion;
-    global.compilacionExitosa = compilarCodigoUsuario(rutaFuente,
-                                                      rutaEjecutable,
-                                                      erroresCompilacion);
+
+    global.compilacionExitosa =
+            compilarCodigoUsuario(rutaFuente, rutaEjecutable, erroresCompilacion);
     global.erroresCompilacion = erroresCompilacion;
 
     if (!global.compilacionExitosa) {
         global.estadoGlobal = "Error de compilación";
+        std::cout << "[Motor] ERROR de compilación:\n"
+                  << erroresCompilacion << "\n";
         return global;
     }
 
-    // 3. Ejecutar y comparar cada caso
-    double sumaTiemposMs = 0.0;
-    double memoriaMaximaMB = 0.0;
-    bool huboIncorrectos = false;
-    bool huboTimeout = false;
-    bool huboErroresEjecucion = false;
+    double sumaTiempos = 0;
+    double maxMem = 0;
 
-    int indice = 1;
-    for (const auto& caso : listaCasos) {
-        ResultadoCaso resultadoCaso = ejecutarYCompararCaso(rutaEjecutable,
-                                                            caso,
-                                                            limites,
-                                                            politica,
-                                                            indice++);
-        global.resultadosPorCaso.push_back(resultadoCaso);
+    for (int i = 0; i < (int)listaCasos.size(); i++) {
 
-        sumaTiemposMs += resultadoCaso.tiempoMs;
-        memoriaMaximaMB = std::max(memoriaMaximaMB, resultadoCaso.memoriaMB);
+        ResultadoCaso rc = ejecutarYCompararCaso(
+                rutaEjecutable, listaCasos[i], limites, politica, i + 1);
 
-        if (resultadoCaso.estado == "INCORRECTO") huboIncorrectos = true;
-        if (resultadoCaso.estado == "TL")          huboTimeout = true;
-        if (resultadoCaso.estado == "RE")          huboErroresEjecucion = true;
+        sumaTiempos += rc.tiempoMs;
+        maxMem = std::max(maxMem, rc.memoriaMB);
+
+        global.resultadosPorCaso.push_back(rc);
     }
 
-    if (!global.resultadosPorCaso.empty()) {
-        global.tiempoPromedioMs = sumaTiemposMs / global.resultadosPorCaso.size();
-        global.memoriaMaximaMB = memoriaMaximaMB;
+    global.tiempoPromedioMs = sumaTiempos / listaCasos.size();
+    global.memoriaMaximaMB = maxMem;
+
+    bool hayRE = false, hayTL = false, hayINC = false;
+
+    for (auto& r : global.resultadosPorCaso) {
+        if (r.estado == "RE") hayRE = true;
+        if (r.estado == "TL") hayTL = true;
+        if (r.estado == "INCORRECTO") hayINC = true;
     }
 
-    if (huboErroresEjecucion) {
-        global.estadoGlobal = "Error de ejecución";
-    } else if (huboTimeout) {
-        global.estadoGlobal = "Tiempo excedido";
-    } else if (huboIncorrectos) {
-        global.estadoGlobal = "Incorrecto";
-    } else {
-        global.estadoGlobal = "Correcto";
-    }
+    if (hayRE)      global.estadoGlobal = "Error de ejecución";
+    else if (hayTL) global.estadoGlobal = "Tiempo excedido";
+    else if (hayINC) global.estadoGlobal = "Incorrecto";
+    else             global.estadoGlobal = "Correcto";
+
+    std::cout << "[Motor] ===== FIN evaluación =====\n"
+              << "  Estado global: " << global.estadoGlobal << "\n"
+              << "  Tiempo promedio: " << global.tiempoPromedioMs << " ms\n"
+              << "  Memoria máxima: " << global.memoriaMaximaMB << " MB\n";
 
     return global;
 }
@@ -145,65 +153,49 @@ bool MotorEvaluacion::compararSalidaEstricta(const std::string& salidaObtenida,
     return salidaObtenida == salidaEsperada;
 }
 
-static std::string normalizarEspaciosInterno(const std::string& texto) {
-    std::string resultado;
-    resultado.reserve(texto.size());
+static std::string normalizar(const std::string& texto) {
+    std::string out;
+    bool esp = false;
 
-    bool enBlanco = false;
     for (char c : texto) {
-        if (std::isspace(static_cast<unsigned char>(c))) {
-            if (!enBlanco) {
-                resultado.push_back(' ');
-                enBlanco = true;
+        if (isspace((unsigned char)c)) {
+            if (!esp) {
+                out.push_back(' ');
+                esp = true;
             }
         } else {
-            resultado.push_back(c);
-            enBlanco = false;
+            out.push_back(c);
+            esp = false;
         }
     }
 
-    // Quitar espacios al final
-    while (!resultado.empty() &&
-           std::isspace(static_cast<unsigned char>(resultado.back()))) {
-        resultado.pop_back();
-    }
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    while (!out.empty() && out.front() == ' ') out.erase(out.begin());
 
-    // Quitar espacios al inicio
-    std::size_t inicio = 0;
-    while (inicio < resultado.size() &&
-           std::isspace(static_cast<unsigned char>(resultado[inicio]))) {
-        ++inicio;
-    }
-
-    return resultado.substr(inicio);
+    return out;
 }
 
 bool MotorEvaluacion::compararSalidaNormalizada(const std::string& salidaObtenida,
                                                 const std::string& salidaEsperada,
-                                                std::string& pistaDiferencia) {
-    std::string normalizadaObtenida = normalizarEspaciosInterno(salidaObtenida);
-    std::string normalizadaEsperada = normalizarEspaciosInterno(salidaEsperada);
+                                                std::string& pista) {
+    std::string o = normalizar(salidaObtenida);
+    std::string e = normalizar(salidaEsperada);
 
-    if (normalizadaObtenida == normalizadaEsperada) {
-        return true;
-    }
+    if (o == e) return true;
 
-    pistaDiferencia = "Salida normalizada distinta. Obtenido: [" +
-                      normalizadaObtenida + "], esperado: [" +
-                      normalizadaEsperada + "].";
+    pista = "Salida distinta. Obtenido=[" + o + "] Esperado=[" + e + "]";
     return false;
 }
 
 std::string MotorEvaluacion::leerArchivoCompleto(const std::string& rutaArchivo) {
-    std::ifstream archivo(rutaArchivo, std::ios::binary);
-    std::ostringstream contenido;
-    contenido << archivo.rdbuf();
-    return contenido.str();
+    std::ifstream f(rutaArchivo, std::ios::binary);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
 }
 
 void MotorEvaluacion::escribirArchivoCompleto(const std::string& rutaArchivo,
                                               const std::string& contenido) {
-    std::ofstream archivo(rutaArchivo, std::ios::binary);
-    archivo << contenido;
-    archivo.flush();
+    std::ofstream f(rutaArchivo, std::ios::binary);
+    f << contenido;
 }
