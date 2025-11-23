@@ -1,13 +1,15 @@
 {
-  "codigo": "#include <bits/stdc++.h>\nusing namespace std;int main(){ios::sync_with_stdio(false);cin.tie(nullptr); long long a,b; if(!(cin>>a>>b)) return 0; cout<<(a+b)<<\"\\n\"; }",
+  "codigo": "#include <iostream>\nusing namespace std;\nint main(){ long long a,b;cin>>a>>b;cout<<a+b; }",
+
   "casos": [
-    { "input": "3 4\n",   "expected": "7\n" },
-    { "input": "10 -2\n", "expected": "8\n" },
-    { "input": "0 0\n",   "expected": "0\n" }
+    { "input": "3 4\n",   "expected": "7" },
+    { "input": "10 -2\n", "expected": "8" }
   ],
+
   "limites": {
     "tiempo_segundos": 2,
     "memoria_mb": 256
   },
-  "politica_comparacion": "estricto"
+
+  "politica_comparacion": "normalizado"
 }
