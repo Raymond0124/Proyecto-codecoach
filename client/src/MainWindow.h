@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include "ProblemModel.h"
 #include "ProblemService.h"
+#include "HttpClient.h"
+#include "analizadorsoluciones.h"  // ← AGREGADO
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -28,12 +30,15 @@ private:
 
     ProblemModel currentProblem;
     ProblemService *service;
-    AdminWindow *adminWindow;   // ✔ ventana de administración
+    AdminWindow *adminWindow;
+    AnalizadorSoluciones *analizador;  // ← AGREGADO
 
     // --- Funciones auxiliares ---
     void loadProblemFromJson(const QByteArray &data);
     QByteArray buildEvaluatePayload() const;
     void showResponse(const QByteArray &data, int status);
+    void mostrarResultadosCompletos(const QString& resultadoMotor,
+                                    const ResultadoAnalisis& analisis);  // ← AGREGADO
 };
 
 #endif // MAINWINDOW_H

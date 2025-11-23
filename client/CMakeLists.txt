@@ -34,6 +34,7 @@ add_executable(codecoach_client
 
         ui/mainwindow.ui
         ui/adminwindow.ui
+        src/analizadorsoluciones.h src/analizadorsoluciones.cpp
 )
 
 # --- Directorios de inclusión ---
